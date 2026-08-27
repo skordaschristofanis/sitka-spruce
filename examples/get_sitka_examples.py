@@ -5,8 +5,9 @@ import zipfile
 
 FILENAME = 'sitka_examples.zip'
 
-SOURCE_URLS = ('https://millenia.cars.aps.anl.gov/xraylarch/downloads/',
-               'https://docs.xrayabsorption.org/sitka_spruce/')
+SOURCE_URLS = ('https://millenia.cars.aps.anl.gov/xraylarch/downloads',
+               'https://docs.xrayabsorption.org/sitka_spruce',
+               )
 
 t0 = time.time()
 downloaded = False
@@ -14,6 +15,7 @@ downloaded = False
 for src in SOURCE_URLS:
     url = f"{src:s}/{FILENAME:s}"
     try:
+        print(f'trying {url=}')
         req = requests.get(url, verify=True, timeout=30)
         downloaded  = (req.status_code == 200)
     except Exception as exc1:
