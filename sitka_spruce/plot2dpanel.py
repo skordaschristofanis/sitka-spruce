@@ -34,7 +34,6 @@ class ArrayImagePanel(wx.Panel):
         wids['imshow'] = Button(panel, 'Show Image', size=(200, -1),
                                 action=self.onImshow)
 
-
         wids['plot_xval'] = Choice(panel, ['<index>'],
                                    size=(200, -1), action=self.onImshow)
         wids['plot_yval'] = Choice(panel, ['<index>'],
@@ -332,7 +331,6 @@ class ArrayImagePanel(wx.Panel):
         data_thread.start()
         time.sleep(0.0005)
         frame_opts = {'title':  f'SitkaImage {win} '}
-        iframe = self.show_imageframe(int(win), **frame_opts)
 
         dlabel = dim_code(reddim)
         self.parent.access_code = f"['{self.filename}']['{self.itemname}']{dlabel}"
@@ -366,9 +364,14 @@ class ArrayImagePanel(wx.Panel):
             self._img = self._img[::-1, :]
             yvals = yvals[::-1]
 
+        self.parent.set_pycode('imshow', filename=self.filename,
+                               itemname=self.itemname, dlabel=dlabel)
+
+        iframe = self.show_imageframe(int(win), **frame_opts)
         iframe.display(self._img, x=xvals, y=yvals, **opts)
         iframe.Show()
         iframe.Raise()
+
         self.parent.data.add_array('_imgdat', self._img, address=self.parent.access_code)
 
     def onShowRGB(self, event=None):

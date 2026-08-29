@@ -14,7 +14,7 @@ from wxutils import (SimpleText, pack,  LEFT,  get_color,
                      FileOpen, FileSave, SelectWorkdir, Popup)
 
 
-from pyshortcuts import get_cwd, fix_filename, uname
+from pyshortcuts import get_cwd, fix_filename, uname, isotime
 from .version import version
 from .logger import get_logger
 from .gui_utils import  get_font, FONTSIZE
@@ -27,6 +27,10 @@ from .tablepanel import TablePanel
 from .arrayspanel import ArraysPanel
 from .ndattrpanel import NDAttrsPanel
 
+try:
+    from IPython import get_ipython
+except ImportError:
+    get_ipython = None
 
 FILE_WILDCARD = 'HDF5/Zarr files(*.hdf5;*.h5;*.zarr)|*.hdf5;*.h5;*.zarr|All files (*.*)|*.*'
 
@@ -37,6 +41,47 @@ ICON_FILE = 'sitka.ico'
 ICON_DIR = Path(Path(__file__).parent, 'icons').absolute()
 
 NDATTR_TITLE = 'Epics NDAttributes'
+
+
+APPNAME_CODE = """ # used to find name of SitkaFrame instance
+from sitka_spruce import SitkaFrame
+saname = '<none>'
+_globs = {key: val  for key, val in globals().items()}
+for key, val in _globs.items():
+    if isinstance(val, SitkaFrame):
+       aname = key
+print(aname)
+"""
+
+IMSHOW_CODE = """
+import hdf5plugin, h5py
+import numpy as np
+import matplotlib.pyplot as plt
+h5file = h5py.File('{filename}', mode='r')
+# from Jupyter session
+# hfile = {dset}['{filename}']
+img = h5file{access}
+img_title = "'{filename}'{access}"
+clevel = 0.1 # percent contrast level
+ilo, ihi = np.percentile(img, [clevel, 100.0-clevel])
+plt.imshow(np.clip(img, ilo, ihi))
+plt.gca().set_title(img_title)
+plt.show()
+"""
+
+PLOT1D_CODE = """
+import hdf5plugin, h5py
+import numpy as np
+import matplotlib.pyplot as plt
+h5file = h5py.File('{filename}', mode='r')
+# from Jupyter session
+# hfile = {dset}['{filename}']
+ydat = h5file{access}
+xdat = np.arange(len(ydat))
+plt.plot(xdat, ydat)
+plt.title('{title}')
+plt.show()
+"""
 
 class FileDropTarget(wx.FileDropTarget):
     def __init__(self, window, callback):
@@ -49,6 +94,41 @@ class FileDropTarget(wx.FileDropTarget):
         return True
 
 
+class IPyConnector:
+    """
+    not-exactly working as well as hoped, but a partial interface to
+    working with the IPython notebook that launched Sitka
+    """
+    def __init__(self, logger):
+        self.ipy  = None if get_ipython is None else get_ipython()
+        self.logger  = logger
+        self.appname = None
+        self.ipayload = {"source": "set_next_input", "text": "",
+                         "replace": False}
+
+    def get_appname(self):
+        'get name in IPython kernel of Sitka Frame'
+        if self.ipy is not None:
+            self.ipy.run_cell_magic('capture', 'output', APPNAME_CODE)
+            capio = self.ipy.user_ns['output']
+            appname = capio.stdout.split('\n')[0]
+            if appname not in ('<none>', None, 'None'):
+                self.appname = appname
+
+    def runcode(self, content):
+        'WIP, not yet working'
+        if self.ipy is None:
+            return
+        self.ipayload["text"] = content
+        self.ipy.payload_manager.write_payload(self.ipayload)
+        self.ipy.set_next_input(content)
+        self.logger.debug(f'ipy:runcode:  {content}')
+        out = self.ipy.run_cell(content)
+        self.logger.debug('ipy:success ', out.success)
+        self.logger.debug('ipy:result ', out.result)
+        self.logger.debug('ipy:info ', out.info)
+
+
 class SitkaFrame(wx.Frame):
     """Main Window for Sitka HDF5/Zarr viewer"""
     def __init__(self, parent=None, with_inspect=False,
@@ -57,10 +137,16 @@ class SitkaFrame(wx.Frame):
         """Create Frame instance."""
         self.logger = get_logger()
         self.data = SitkaData(logger=self.logger)
+        self.config = {'ipython_plot': False}
+        self.ipyconn = None
+        if get_ipython is not None:
+            self.ipyconn = IPyConnector(self.logger)
 
-        self.wids = {}
         self.filename = None
         self.with_inspect = with_inspect
+        self.access_code = None
+        self.python_code = None
+        self.wids = {}
         wx.Frame.__init__(self, parent, title=title, size=size,
                           style=style)
         self.CreateStatusBar()
@@ -110,8 +196,10 @@ class SitkaFrame(wx.Frame):
         self.itemname_label = SimpleText(tpanel, '', font=get_font(larger=1),
                                          colour='title_red', size=(675, -1),
                                          style=LEFT|wx.ALIGN_CENTER_VERTICAL)
-        self.copybtn = Button(tpanel, 'Copy Address', size=(200, -1),
+        self.copy_addr_btn = Button(tpanel, 'Copy Address', size=(200, -1),
                               action=self.onCopyAddress)
+        self.copy_py_btn = Button(tpanel, 'Copy Python Code', size=(200, -1),
+                              action=self.onCopyPyCode)
         self.importbtn = Button(tpanel, 'Import Named Arrays', size=(200, -1),
                                      action=self.onImportNamedArrays)
 
@@ -139,8 +227,9 @@ class SitkaFrame(wx.Frame):
 
         tpanel.Add(self.filename_label, dcol=4)
         tpanel.Add(self.itemname_label, dcol=4, newrow=True)
-        tpanel.Add(self.copybtn,   dcol=2, newrow=True)
-        tpanel.Add(self.importbtn, dcol=2, newrow=False)
+        tpanel.Add(self.copy_addr_btn, dcol=2, newrow=True)
+        tpanel.Add(self.copy_py_btn, dcol=1, newrow=False)
+        tpanel.Add(self.importbtn,  dcol=2, newrow=False)
         tpanel.Add(self.nb, dcol=4, drow=5, newrow=True)
         tpanel.pack()
         sizer = wx.BoxSizer(wx.VERTICAL)
@@ -174,6 +263,15 @@ class SitkaFrame(wx.Frame):
             wx.TheClipboard.SetData(wx.TextDataObject(self.access_code))
             wx.TheClipboard.Close()
             msg = 'Copied data address to Clipboard'
+        self.logger.info(msg)
+        self.status_message(msg)
+
+    def onCopyPyCode(self, event=None):
+        msg = 'Could not copy python code to Clipboard'
+        if self.python_code is not None and wx.TheClipboard.Open():
+            wx.TheClipboard.SetData(wx.TextDataObject(self.python_code))
+            wx.TheClipboard.Close()
+            msg = 'Copied Python code to Clipboard'
         self.logger.info(msg)
         self.status_message(msg)
 
@@ -227,6 +325,8 @@ class SitkaFrame(wx.Frame):
         self.filename_label.SetLabel(f" Filename: {filename}")
         self.itemname_label.SetLabel(f" Address: {itemname}")
         self.importbtn.Enable(itemname=='sitka_arrays')
+        self.copy_py_btn.Enable(self.python_code is not None)
+        self.copy_addr_btn.Enable(self.access_code is not None)
 
         if EPICS_NDATTR in itemname:
             if NDATTR_TITLE not in self.nb_pages:
@@ -248,9 +348,38 @@ class SitkaFrame(wx.Frame):
             page.set_object(object, itemtype=itemtype,
                             filename=filename, itemname=itemname)
 
+    def set_pycode(self, command, filename=None, itemname=None,
+                   dlabel=None, **kws):
+        self.python_code = None
+        if filename is None or itemname is None:
+            return
+        appname = 'sitkaviewer'
+        if self.ipyconn is not None:
+            if self.ipyconn.appname is None:
+                self.ipyconn.get_appname()
+            if self.ipyconn.appname is not None:
+                appname = self.ipyconn.appname
+        if command == 'imshow':
+            dset = f'{appname}.data.datasets'
+            access = f"['{itemname}']{dlabel}"
+            self.python_code = IMSHOW_CODE.format(dset=dset,
+                                                  filename=filename,
+                                                  access=access)
+            self.copy_py_btn.Enable()
+        elif command == 'plot1d':
+            dset = f'{appname}.data.datasets'
+            access = f"['{itemname}']{dlabel}"
+            title = kws.get('title', access)
+            self.python_code = PLOT1D_CODE.format(dset=dset,
+                                                  filename=filename,
+                                                  access=access,
+                                                  title=title)
+            self.copy_py_btn.Enable()
+
     def fill_info(self, name, itemtype, itemname, object):
         self.file_info = (name, itemname, itemtype)
         self.access_code = f"['{name}']['{itemname}']"
+        self.copy_addr_btn.Enable()
 
         self.info.DeleteAllItems()
         if name == 'Data':
@@ -297,12 +426,20 @@ class SitkaFrame(wx.Frame):
         menubar.Append(fmenu, '&File')
 
         omenu = wx.Menu()
+        if get_ipython is not None:
+            MenuItem(self, omenu,  "Show Plots/Images in IPython Notebook", "",
+                     self.onUseIPythonPlot, kind=wx.ITEM_CHECK,
+                     checked=False)
+            omenu.AppendSeparator()
+
         MenuItem(self, omenu,  "Increase Font Size", "", self.onIncreaseFont)
         MenuItem(self, omenu,  "Decrease Font Size", "", self.onDecreaseFont)
 
         omenu.AppendSeparator()
         MenuItem(self, omenu, 'Copy Address to Clipboard\tCtrl+C',
                  'Copy Current Address to to Clipboard', self.onCopyAddress)
+        MenuItem(self, omenu, 'Copy Python Plotting Code to Clipboard',
+                 'Copy Plotting Code to to Clipboard', self.onCopyPyCode)
         MenuItem(self, omenu, "Export Attributes to TSV File\tCtrl+E",
                  "Export Info and Attributes to tab-separated File",
                  self.onExportInfo)
@@ -321,6 +458,9 @@ class SitkaFrame(wx.Frame):
         menubar.Append(hmenu, '&Help')
 
         self.SetMenuBar(menubar)
+
+    def onUseIPythonPlot(self, event=None):
+        self.config['ipython_plot'] = not self.config['ipython_plot']
 
     def onIncreaseFont(self, event=None):
         self.set_fontsize(self.GetFont().GetPointSize()+1)

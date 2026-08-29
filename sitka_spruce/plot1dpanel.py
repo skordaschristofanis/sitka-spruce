@@ -231,6 +231,10 @@ class ArrayPlot1DPanel(wx.Panel):
 
         self.parent.status_message(f'got data ({dsize} of {osize}) in {dt_data:.2f} seconds')
 
+        self.parent.set_pycode('plot1d', filename=self.filename,
+                               itemname=self.itemname, dlabel=ylabel, **opts)
+
+
         xvals = self.parent.data.arrays.get(xarr, None)
         if xarr == '<index>' or xvals is None:
             opts['xlabel'] = 'index'
