@@ -14,7 +14,7 @@ from wxutils import (SimpleText, pack,  LEFT,  get_color,
                      FileOpen, FileSave, SelectWorkdir, Popup)
 
 
-from pyshortcuts import get_cwd, fix_filename, uname, isotime
+from pyshortcuts import get_cwd, fix_filename, uname
 from .version import version
 from .logger import get_logger
 from .gui_utils import  get_font, FONTSIZE
@@ -79,7 +79,7 @@ h5file = h5py.File('{filename}', mode='r')
 ydat = h5file{access}
 xdat = np.arange(len(ydat))
 plt.plot(xdat, ydat)
-plt.title('{title}')
+plt.title('''{title}''')
 plt.show()
 """
 
@@ -124,9 +124,9 @@ class IPyConnector:
         self.ipy.set_next_input(content)
         self.logger.debug(f'ipy:runcode:  {content}')
         out = self.ipy.run_cell(content)
-        self.logger.debug('ipy:success ', out.success)
-        self.logger.debug('ipy:result ', out.result)
-        self.logger.debug('ipy:info ', out.info)
+        self.logger.debug(f'ipy:success {out.success}')
+        self.logger.debug(f'ipy:result {out.result}')
+        self.logger.debug(f'ipy:info {out.info}')
 
 
 class SitkaFrame(wx.Frame):
@@ -169,7 +169,8 @@ class SitkaFrame(wx.Frame):
         leftpanel = wx.Panel(splitter)
         rightpanel = wx.Panel(splitter)
 
-        self.tree = HDataTree(leftpanel, on_select=self.onSelectObject)
+        self.tree = HDataTree(leftpanel, on_select=self.onSelectObject,
+                              logger=self.logger)
 
         self.info = dv.DataViewListCtrl(leftpanel, style=DV_STYLE)
         self.info.AppendTextColumn('Name', width=125)
@@ -640,8 +641,6 @@ class SitkaFrame(wx.Frame):
         info.AddDeveloper('Matthew Newville: newville@cars.uchicago.edu')
         AboutBox(info)
 
-
-
     def onExit(self, event=None):
         ret = Popup(self,
                     'Really Quit?', '',
@@ -650,8 +649,9 @@ class SitkaFrame(wx.Frame):
             try:
                 for a in self.GetChildren():
                     a.Destroy()
-            except Exception:
-                pass
+            except Exception as exc:
+                self.logger.debug(f'exit exception destroying children {exc}')
+
             self.Destroy()
 
 class Sitka_App(wx.App, wx.lib.mixins.inspection.InspectionMixin):

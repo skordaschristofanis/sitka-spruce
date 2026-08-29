@@ -8,11 +8,12 @@ TREESTYLE = wx.TR_DEFAULT_STYLE|wx.TR_HIDE_ROOT
 
 class HDataTree(wx.TreeCtrl):
     """TreeCtrl for hierarchical data structures and files such as HDF5/Zarr"""
-    def __init__(self, parent, size=(350, 250), style=TREESTYLE, on_select=None,
-                 on_rightclick=None):
+    def __init__(self, parent, logger=None, size=(350, 250), style=TREESTYLE,
+                 on_select=None, on_rightclick=None):
         """Create FillingTree instance."""
         wx.TreeCtrl.__init__(self, parent, size=size, style=style)
         self.item = None
+        self.logger = logger
         self.on_select = None
         self.on_rightclick = None
         self.is_dark = DARK_THEME
@@ -92,8 +93,8 @@ class HDataTree(wx.TreeCtrl):
         try:
             self.Expand(node)
             self.SelectItem(node)
-        except Exception:
-            pass
+        except Exception as exc:
+            self.logger.debug(f'HDArray cannot set item:  {exc}')
 
     def get_node_by_name(self, node, name):
         if node is None:
@@ -133,8 +134,8 @@ class HDataTree(wx.TreeCtrl):
                 if self.IsExpanded(self.item):
                     self.addChildren(self.item)
                     self.SetItemHasChildren(self.item, self.objHasChildren(obj))
-            except Exception:
-                pass
+            except Exception as exc:
+                self.logger.debug(f'HDArray cannot select item:  {exc}')
 
             if self.on_select is not None:
                 self.on_select(obj, address=self.get_address(self.item),
@@ -151,9 +152,8 @@ class HDataTree(wx.TreeCtrl):
 
     def objGetChildren(self, obj):
         """Return dictionary with attributes or contents of object."""
-        out = {}
         if (obj is None or obj is False or obj is True):
-            pass
+            out = {}
         elif isinstance(obj, COMMONTYPES):
             out = obj
         elif isinstance(obj, (list, tuple)):

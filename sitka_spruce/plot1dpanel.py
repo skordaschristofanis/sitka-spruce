@@ -133,8 +133,8 @@ class ArrayPlot1DPanel(wx.Panel):
             cur = self.wids['yarray'].GetSelection()
             try:
                 self.wids['yarray'].SetChoices(choices)
-            except Exception:
-                pass
+            except Exception as exc:
+                self.logger.debug(f'could not set Yarray choices: {exc}')
             self.dim_reduce.enable_dimension(cur, enable=False, npts=None)
             aname = itemname.split('/')[-1]
             self.wids['array_name'].SetValue(aname)

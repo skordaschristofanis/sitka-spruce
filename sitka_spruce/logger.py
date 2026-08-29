@@ -6,7 +6,6 @@ Handling loggers
 import logging
 from logging.handlers import RotatingFileHandler
 from platformdirs import user_log_path
-from pathlib import Path
 
 LOGDIR = user_log_path('sitka_spruce',
                        appauthor=False,
