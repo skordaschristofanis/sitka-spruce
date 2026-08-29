@@ -2,12 +2,18 @@
 Handling loggers
 """
 
-import sys
+
 import logging
+from logging.handlers import RotatingFileHandler
+from platformdirs import user_log_path
+from pathlib import Path
+
+LOGDIR = user_log_path('sitka_spruce',
+                       appauthor=False,
+                       ensure_exists=True)
 
 # set up default logging configureation
-_FORMAT = "[%(name)-s | %(levelname)-8s] %(message)s"
-_TFORMAT = "[%(asctime)s | %(name)-s | %(levelname)-8s] %(message)s"
+_FORMAT = "[%(asctime)s | %(name)-s | %(levelname)-8s] %(message)s"
 _DATEFMT = "%Y-%m-%d %H:%M:%S"
 
 _LEVELS = {"DEBUG": logging.DEBUG,
@@ -20,25 +26,6 @@ _LEVELS = {"DEBUG": logging.DEBUG,
 
 LOGINIT = False
 
-def getFileHandler(filename, mode="a"):
-    """Default console handler"""
-    file_handler = logging.FileHandler(filename, mode=mode)
-    file_handler.setFormatter(
-        logging.Formatter(fmt=_TFORMAT, datefmt=_DATEFMT))
-    return file_handler
-
-
-class ConsoleFormatter(logging.Formatter):
-    """Colored logging formatter intended for the console output"""
-    def format(self, record):
-        return logging.Formatter(_FORMAT).format(record)
-
-def getConsoleHandler():
-    """Default console handler"""
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(ConsoleFormatter())
-    return console_handler
-
 def get_logger(name='sitka', level="INFO"):
     """Utility function to get the logger with customization
 
@@ -49,38 +36,12 @@ def get_logger(name='sitka', level="INFO"):
     name : str        name of the logger
     level : str (optional)   logging level ['INFO']
     """
-    global LOGINIT
-    if not LOGINIT:
-        logging.basicConfig(level=_LEVELS[level],
-                            format=_FORMAT, datefmt=_DATEFMT)
-        LOGINIT = True
+    logfile = LOGDIR / f'{name}.log'
+    handler = RotatingFileHandler(logfile, mode='a',
+                                  maxBytes=5.0e5, backupCount=5)
+
+    handler.setFormatter(logging.Formatter(_FORMAT, _DATEFMT))
     logger = logging.getLogger(name)
+    logger.addHandler(handler)
     logger.setLevel(_LEVELS[level])
-
-    if logger.hasHandlers():
-        logger.handlers.clear()
-    logger.propagate = False
     return logger
-
-
-def test_logger(level="DEBUG"):
-    """Test custom logger"""
-    logger = logging.getLogger("sitka test logger", level=level)
-    logger.debug("This is a debug message")
-    logger.info("This is an info message")
-    logger.warning("This is a warning message")
-    logger.error("This is an error message")
-    logger.critical("This is a critical message")
-    import tempfile
-
-    flog = tempfile.mktemp(prefix="test_logger_", suffix=".log")
-    logger.addHandler(getFileHandler(flog))
-    logger.info(f"Added a file handler -> {flog}")
-    logger.info("Testing all log levels (again):")
-    logger.debug("This is a debug message")
-    logger.error("This is an error message")
-    logger.critical("This is a critical message")
-
-
-if __name__ == "__main__":
-    test_logger()

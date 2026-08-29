@@ -10,7 +10,8 @@ DEFAULT_CONFIG = {'dimreduce': {'maxdim': 5,
                                 'point': 'mid'}}
 def verify_configfile():
     "verify sitka configfile folder and file exist, making if needed"
-    config_path =  user_config_path('sitka')
+    config_path =  user_config_path('sitka_spruce',
+                                    appauthor=False, ensure_exists=True)
     if not config_path.exists():
         config_path.mkdir(mode=493,  parents=True, exist_ok=True)
     config_file  =  Path(config_path, 'sitka.yaml')
