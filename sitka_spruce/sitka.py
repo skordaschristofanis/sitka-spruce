@@ -13,6 +13,10 @@ from wxutils import (SimpleText, pack,  LEFT,  get_color,
                      MenuItem,  flatnotebook, GridPanel, Button,
                      FileOpen, FileSave, SelectWorkdir, Popup)
 
+try:
+    from wxutils import SetAppDisplayName, SetDockIcon
+except ImportError:
+     SetAppDisplayName = SetDockIcon = None
 
 from pyshortcuts import get_cwd, fix_filename, uname
 from .version import version
@@ -38,6 +42,7 @@ FILE_WILDCARD = 'HDF5/Zarr files(*.hdf5;*.h5;*.zarr)|*.hdf5;*.h5;*.zarr|All file
 DV_STYLE = dv.DV_SINGLE|dv.DV_VERT_RULES|dv.DV_ROW_LINES
 
 ICON_FILE = 'sitka.ico'
+ICON_FILE_MAC = 'sitka.icns'
 ICON_DIR = Path(Path(__file__).parent, 'icons').absolute()
 
 NDATTR_TITLE = 'Epics NDAttributes'
@@ -149,6 +154,8 @@ class SitkaFrame(wx.Frame):
         self.wids = {}
         wx.Frame.__init__(self, parent, title=title, size=size,
                           style=style)
+
+        self.SetTitle('Sitka')
         self.CreateStatusBar()
         self.create_display(size=size)
         self.BuildMenus()
@@ -669,6 +676,11 @@ class Sitka_App(wx.App, wx.lib.mixins.inspection.InspectionMixin):
 
         iconpath = Path(ICON_DIR, ICON_FILE).as_posix()
         self.frame.SetIcon(wx.Icon(iconpath, wx.BITMAP_TYPE_ICO))
+        if uname == 'darwin':
+            if SetDockIcon is not None:
+                SetDockIcon(Path(ICON_DIR, ICON_FILE_MAC))
+            if SetAppDisplayName is not None:
+                SetAppDisplayName('Sitka')
         return True
 
     def OnInit(self):
