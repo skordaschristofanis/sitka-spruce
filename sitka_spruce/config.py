@@ -22,5 +22,5 @@ def verify_configfile():
 def read_configfile():
     "read sitka configfile"
     verify_configfile()
-    config_file = Path(user_config_path('sitka'), 'sitka.yaml')
+    config_file = Path(user_config_path('sitka_spruce'), 'sitka.yaml')
     return yaml.safe_load(open(config_file, 'r').read())
