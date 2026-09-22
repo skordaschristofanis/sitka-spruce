@@ -1,28 +1,25 @@
-import sys
 from argparse import ArgumentParser
 from pathlib import Path
-from pyshortcuts import uname, make_shortcut, ico_ext
 
 from wxmplot.interactive import get_wxapp
+from wxutils import AppConfig, WxApplication, add_application_arguments, handle_shortcut_arguments
+
 
 from .data import get_sitka_files
-from .sitka import Sitka_App, SitkaFrame
+from .sitka import SitkaFrame
+
+
+APP_CONFIG = AppConfig(
+    name="Sitka",
+    assets=str(Path(__file__).resolve().parent / "icons"),
+    description="Sitka Hierarchical Data Viewer for HDF5 and Zarr",
+    application_id="sitka_spruce.sitka",
+)
+
 
 def sitka_viewer(folder=None):
-    """Sitka Vewer for HDF5/Zarr files that that can be run
-    interactively from within an Python/Jupyer repl
+    """Sitka Viewer for use from a Python/Jupyter REPL."""
 
-    Arguments
-    ---------
-    folder (str or None) folder name to read HDF5/Zarr files from
-
-    Returns
-    -------
-    SitkaFrame a wx.Frame for the viewer.
-
-    This has a '.data' member that holds the datasets and working
-    arrays used by sitka.
-    """
     get_wxapp()
     sview = SitkaFrame()
     if folder is not None:
@@ -32,42 +29,21 @@ def sitka_viewer(folder=None):
     sview.Raise()
     return sview
 
-def sitka_cli():
-    """
-    sitka command-line app
-    """
 
-    parser = ArgumentParser(description='Sitka Data Viewer')
-    parser.add_argument('-d', '--dir', dest='directory',
-                       default=None, help="directory to find data files")
-    parser.add_argument('-m', '--makeicon', action='store_true', default=False,
-                            help="make desktop shortcut")
-    parser.add_argument('-i', '--inspect', action='store_true', default=False,
-                            help="enable wxInspect")
+def make_parser():
+    parser = ArgumentParser(description="Sitka Data Viewer")
+    add_application_arguments(parser)
+    return parser
+
+
+def sitka_cli():
+    parser = make_parser()
     args = parser.parse_args()
 
-    if args.makeicon:
-        bindir = 'Scripts' if uname == 'win' else 'bin'
-        bindir = Path(sys.prefix, bindir).absolute()
-        script = 'sitka'
-        script = Path(bindir, script).absolute().as_posix()
-
-        for ext in ico_ext:
-            icondir = Path(Path(__file__).parent, 'icons').absolute()
-            print(f" app icon : {icondir=}")
-            ticon = Path(icondir, f"sitka.{ext:s}").absolute()
-            if ticon.exists():
-                icon = ticon
-        make_shortcut(script, name='Sitka', folder=None,
-                      icon=icon.as_posix(),
-                      description='Sitka Data Viewer',
-                      terminal=False)
+    if handle_shortcut_arguments(parser, args, APP_CONFIG):
         return
 
-    app = Sitka_App(with_inspect=args.inspect)
-    if args.directory is not None:
-        files = get_sitka_files(args.directory)
-        if len(files) > 0:
-            for fname, dset in files.items():
-                app.add_dataset(fname, dataset=dset)
-    app.MainLoop()
+    app = WxApplication(APP_CONFIG)
+    frame = SitkaFrame(with_inspect=args.inspect)
+    app.run(frame)
+
