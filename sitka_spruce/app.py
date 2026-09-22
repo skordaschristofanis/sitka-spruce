@@ -33,6 +33,8 @@ def sitka_viewer(folder=None):
 def make_parser():
     parser = ArgumentParser(description="Sitka Data Viewer")
     add_application_arguments(parser)
+    parser.add_argument('-d', '--dir', dest='directory',
+                        default=None, help="directory to find data files")
     return parser
 
 
@@ -45,5 +47,11 @@ def sitka_cli():
 
     app = WxApplication(APP_CONFIG)
     frame = SitkaFrame(with_inspect=args.inspect)
-    app.run(frame)
 
+    if args.directory is not None:
+        files = get_sitka_files(args.directory)
+        if len(files) > 0:
+            for fname, dset in files.items():
+                frame.add_dataset(fname, dataset=dset)
+
+    app.run(frame)
