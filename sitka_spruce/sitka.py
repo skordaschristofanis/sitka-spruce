@@ -660,35 +660,3 @@ class SitkaFrame(wx.Frame):
                 self.logger.debug(f'exit exception destroying children {exc}')
 
             self.Destroy()
-
-class Sitka_App(wx.App, wx.lib.mixins.inspection.InspectionMixin):
-    "simple app to wrap HDF5_Frame"
-    def __init__(self, with_inspect=False, **kws):
-        self.with_inspect = with_inspect
-        wx.App.__init__(self, **kws)
-
-    def createApp(self):
-        self.frame = SitkaFrame(with_inspect=self.with_inspect)
-        use_darkdetect()
-        self.frame.Show()
-
-        self.SetTopWindow(self.frame)
-
-        iconpath = Path(ICON_DIR, ICON_FILE).as_posix()
-        self.frame.SetIcon(wx.Icon(iconpath, wx.BITMAP_TYPE_ICO))
-        if uname == 'darwin':
-            if SetDockIcon is not None:
-                SetDockIcon(Path(ICON_DIR, ICON_FILE_MAC))
-            if SetAppDisplayName is not None:
-                SetAppDisplayName('Sitka')
-        return True
-
-    def OnInit(self):
-        self.createApp()
-        return True
-
-    def add_dataset(self, name, dataset=None):
-        self.frame.add_dataset(name, dataset=dataset)
-
-    def add_array(self, name, array, address=None):
-        self.frame.add_dataset(name, array, address=address)
