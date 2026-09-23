@@ -2,7 +2,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from wxmplot.interactive import get_wxapp
-from wxutils import AppConfig, WxApplication, add_application_arguments, handle_shortcut_arguments
+from wxutils import (AppConfig, WxApplication,
+                     add_application_arguments, handle_shortcut_arguments)
 
 
 from .data import get_sitka_files
@@ -42,7 +43,7 @@ def sitka_cli():
     parser = make_parser()
     args = parser.parse_args()
 
-    if handle_shortcut_arguments(parser, args, APP_CONFIG):
+    if handle_shortcut_arguments(parser, args, APP_CONFIG, desktop=True):
         return
 
     app = WxApplication(APP_CONFIG)
